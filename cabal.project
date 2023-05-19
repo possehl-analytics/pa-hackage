@@ -1,0 +1,7 @@
+packages:
+  ./pa-label
+
+-- These options should only be for local development with cabal, they will not be picked up by the nix build, on CI and in releases.
+package *
+  -- This causes cabal to build modules on all cores, instead of just one.
+  ghc-options: -j

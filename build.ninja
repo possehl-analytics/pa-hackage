@@ -1,0 +1,20 @@
+builddir = .ninja
+
+# build the cabal $target
+rule cabal-build
+  command = cabal build $target
+
+# build the cabal $target
+rule cabal-build
+  command = cabal build $target
+
+# build all packages
+build build-all : cabal-build
+  target = all
+
+# copy the main repository’s license file to the given directories
+rule copy-license
+  command = cp LICENSE $out
+
+# copy LICENSE to all subprocts (list manually)
+build pa-label/LICENSE : copy-license
