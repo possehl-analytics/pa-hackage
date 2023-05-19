@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Label
   ( -- * Labels

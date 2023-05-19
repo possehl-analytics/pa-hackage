@@ -1,0 +1,6 @@
+cradle:
+  cabal:
+{{#hackagePackages}}
+    - path: "./{{name}}"
+      component: "lib:{{name}}"
+{{/hackagePackages}}
