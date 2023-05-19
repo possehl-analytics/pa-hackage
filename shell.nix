@@ -11,6 +11,13 @@ pkgs.mkShell {
       hps.these
       hps.semigroupoids
       hps.profunctors
+      hps.scientific
+      hps.semigroupoids
+      hps.aeson
+      hps.aeson-better-errors
+      hps.attoparsec
+      hps.case-insensitive
+      hps.text
     ]))
     pkgs.cabal-install
     pkgs.haskell-language-server

@@ -49,6 +49,28 @@
                 "pa-prelude",
                 "containers"
             ]
+        },
+        {
+            "name": "pa-field-parser",
+            "version": "0.1.0.0",
+            "synopsis": "“Vertical” parsing of values",
+            "description": "",
+            "modules": [
+                "FieldParser"
+            ],
+            "dependencies": [
+                "base <5",
+                "pa-prelude",
+                "pa-error-tree",
+                "containers",
+                "scientific",
+                "semigroupoids",
+                "aeson",
+                "aeson-better-errors",
+                "attoparsec",
+                "case-insensitive",
+                "text"
+            ]
         }
     ]
 }

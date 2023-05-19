@@ -62,6 +62,14 @@ build pa-error-tree/pa-error-tree.cabal : generate-cabal-file $builddir/pa-error
   cabal-template = pa-template.cabal.mustache
   project-dir = pa-error-tree
 
+build pa-field-parser/LICENSE : copy-license
+build $builddir/pa-field-parser.cabal.json : generate-cabal-file-data | project.json
+  cabal-package = pa-field-parser
+  project-json = project.json
+build pa-field-parser/pa-field-parser.cabal : generate-cabal-file $builddir/pa-field-parser.cabal.json | pa-template.cabal.mustache
+  cabal-template = pa-template.cabal.mustache
+  project-dir = pa-field-parser
+
 
 # generate cabal.project
 build cabal.project : generate-cabal.project | cabal.project.mustache project.json
@@ -74,5 +82,5 @@ build hie.yaml : generate-hie.yaml | hie.yaml.mustache project.json
   project-json = project.json
 
 # build all packages
-build build-all : cabal-build hie.yaml cabal.project pa-prelude/pa-prelude.cabal pa-label/pa-label.cabal pa-error-tree/pa-error-tree.cabal
+build build-all : cabal-build hie.yaml cabal.project pa-prelude/pa-prelude.cabal pa-label/pa-label.cabal pa-error-tree/pa-error-tree.cabal pa-field-parser/pa-field-parser.cabal
   target = all

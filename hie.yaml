@@ -7,4 +7,6 @@ cradle:
       component: "lib:pa-label"
     - path: "./pa-error-tree"
       component: "lib:pa-error-tree"
+    - path: "./pa-field-parser"
+      component: "lib:pa-field-parser"
 
