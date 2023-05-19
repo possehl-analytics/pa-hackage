@@ -11,7 +11,7 @@
             ],
             "dependencies": [
                 "base <5",
-                "error",
+                "error >0.1 && <1.1",
                 "exceptions",
                 "mtl",
                 "text",
@@ -34,6 +34,20 @@
             ],
             "dependencies": [
                 "base <5"
+            ]
+        },
+        {
+            "name": "pa-error-tree",
+            "version": "0.1.0.0",
+            "synopsis": "Collect a tree of errors and pretty-print",
+            "description": "",
+            "modules": [
+                "Data.Error.Tree"
+            ],
+            "dependencies": [
+                "base <5",
+                "pa-prelude",
+                "containers"
             ]
         }
     ]

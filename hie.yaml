@@ -5,4 +5,6 @@ cradle:
       component: "lib:pa-prelude"
     - path: "./pa-label"
       component: "lib:pa-label"
+    - path: "./pa-error-tree"
+      component: "lib:pa-error-tree"
 
