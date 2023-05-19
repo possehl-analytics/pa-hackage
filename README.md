@@ -8,7 +8,8 @@ Every package is prefixed with `pa-` on hackage, as to not clobber the hackage n
 
 All of these come as-is and provide no real stability guarantees (we might change them as we refactor internal code), though we will try to follow PVP/Semver.
 
-
 ## Maintainers
 
 Duplication is handled via a `ninja` file; run `ninja` to keep everything up-to-date.
+
+All package metadata is in [./package.json](./package.json) and is used to generate duplicated information.

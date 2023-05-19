@@ -1,0 +1,88 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "type": "object",
+    "description": "A file with all metadata of the packages, so that we can autogenerate .cabal files and others",
+    "required": [
+        "hackagePackages"
+    ],
+    "properties": {
+        "hackage-packages": {
+            "type": "array",
+            "description": "The data of all haskell packages to be uploaded to hackage",
+            "items": {
+                "type": "object",
+                "description": "A haskell package to be uploaded to hackage",
+                "required": [
+                    "name",
+                    "version",
+                    "synopsis",
+                    "description",
+                    "modules",
+                    "dependencies"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the cabal package",
+                        "examples": [
+                            "pa-prelude"
+                        ]
+                    },
+                    "version": {
+                        "type": "string",
+                        "format": "PVP Version",
+                        "description": "The [hackage PVP](https://pvp.haskell.org/) version string",
+                        "examples": [
+                            "0.1.0.1"
+                        ]
+                    },
+                    "synopsis": {
+                        "type": "string",
+                        "description": "The cabal file’s `synopsis` field (short one-line description)",
+                        "examples": [
+                            "The Possehl Analytics Prelude"
+                        ]
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "The cabal file’s `description` field (will be put on the module overview page before the module list)",
+                        "examples": [
+                            "A prelude to be used in addition to `base`’s `Prelude`"
+                        ]
+                    },
+                    "modules": {
+                        "type": "array",
+                        "description": "The full list of modules this package exports",
+                        "items": {
+                            "type": "string",
+                            "format": "module name",
+                            "description": "A module name"
+                        },
+                        "examples": [
+                            [
+                                "PossehlAnalyticsPrelude"
+                            ]
+                        ]
+                    },
+                    "dependencies": {
+                        "type": "array",
+                        "description": "The full list of package dependencies we need, including optional version bounds",
+                        "items": {
+                            "type": "string",
+                            "format": "cabal package name (optional version bounds)",
+                            "description": "[A cabal package name](https://cabal.readthedocs.io/en/3.4/cabal-package.html#pkg-field-build-depends), with optional version bounds"
+                        },
+                        "examples": [
+                            [
+                                "base <5",
+                                "error",
+                                "containers",
+                                "these"
+                            ]
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}
