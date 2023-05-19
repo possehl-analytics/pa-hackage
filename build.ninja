@@ -4,10 +4,6 @@ builddir = .ninja
 rule cabal-build
   command = cabal build $target
 
-# build the cabal $target
-rule cabal-build
-  command = cabal build $target
-
 # build all packages
 build build-all : cabal-build
   target = all
@@ -18,3 +14,4 @@ rule copy-license
 
 # copy LICENSE to all subprocts (list manually)
 build pa-label/LICENSE : copy-license
+build pa-prelude/LICENSE : copy-license
