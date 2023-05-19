@@ -12,4 +12,4 @@ All of these come as-is and provide no real stability guarantees (we might chang
 
 Duplication is handled via a `ninja` file; run `ninja` to keep everything up-to-date.
 
-All package metadata is in [./package.json](./package.json) and is used to generate duplicated information.
+All package metadata is in [./project.json](./project.json) and is used to generate duplicated information.
