@@ -18,6 +18,7 @@ pkgs.mkShell {
       hps.attoparsec
       hps.case-insensitive
       hps.text
+      hps.hspec
     ]))
     pkgs.cabal-install
     pkgs.haskell-language-server

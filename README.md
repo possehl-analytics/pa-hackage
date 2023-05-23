@@ -13,3 +13,12 @@ All of these come as-is and provide no real stability guarantees (we might chang
 Duplication is handled via a `ninja` file; run `ninja` to keep everything up-to-date.
 
 All package metadata is in [./project.json](./project.json) and is used to generate duplicated information.
+
+### Creating a package
+
+(this might go out of date)
+
+1. Create a new package entry in [./project.json](./project.json).
+2. Go to [./build.ninja](./build.ninja) and copy the block from another package (replacing the package name), and don’t forget to add the new package as input to `build-all`.
+3. Run `ninja`
+4. Add sources in `src`, write the `README` and add something to the changelog (copy from somewhere)

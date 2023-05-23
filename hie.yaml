@@ -9,4 +9,6 @@ cradle:
       component: "lib:pa-error-tree"
     - path: "./pa-field-parser"
       component: "lib:pa-field-parser"
+    - path: "./pa-json"
+      component: "lib:pa-json"
 
