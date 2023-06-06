@@ -96,6 +96,25 @@
                 "hspec-core",
                 "hspec-expectations"
             ]
+        },
+        {
+            "name": "pa-pretty",
+            "version": "0.1.0.0",
+            "synopsis": "Some pretty-printing helpers",
+            "description": "",
+            "modules": [
+                "Pretty"
+            ],
+            "dependencies": [
+                "base <5",
+                "pa-prelude",
+                "aeson",
+                "aeson-pretty",
+                "text",
+                "hscolour",
+                "ansi-terminal",
+                "nicify-lib"
+            ]
         }
     ]
 }

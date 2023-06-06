@@ -19,6 +19,9 @@ pkgs.mkShell {
       hps.case-insensitive
       hps.text
       hps.hspec
+      hps.nicify-lib
+      hps.aeson-pretty
+      hps.hscolour
     ]))
     pkgs.cabal-install
     pkgs.haskell-language-server

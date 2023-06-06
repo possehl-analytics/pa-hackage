@@ -11,4 +11,6 @@ cradle:
       component: "lib:pa-field-parser"
     - path: "./pa-json"
       component: "lib:pa-json"
+    - path: "./pa-pretty"
+      component: "lib:pa-pretty"
 
