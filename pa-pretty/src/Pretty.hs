@@ -3,6 +3,7 @@ module Pretty
     Err,
     showPretty,
     showPrettyJson,
+    showPrettyJsonEncoding,
     printPretty,
     -- constructors hidden
     prettyErrs,
@@ -16,6 +17,7 @@ where
 
 import Data.Aeson qualified as Json
 import Data.Aeson.Encode.Pretty qualified as Aeson.Pretty
+import Data.Aeson.Encoding qualified as Json.Enc
 import Data.List qualified as List
 import Data.Text.Lazy.Builder qualified as Text.Builder
 import Language.Haskell.HsColour
@@ -50,6 +52,16 @@ showPrettyJson val =
     & Aeson.Pretty.encodePrettyToTextBuilder
     & Text.Builder.toLazyText
     & toStrict
+
+showPrettyJsonEncoding :: Json.Encoding -> Text
+showPrettyJsonEncoding enc =
+  -- We have to roundtrip through Value again
+  enc
+    & Json.Enc.encodingToLazyByteString
+    & Json.decode @Json.Value
+    & annotate "the json parser can’t parse json encodings??"
+    & unwrapError
+    & showPrettyJson
 
 -- | Display a list of 'Err's as a colored error message
 -- and abort the test.
