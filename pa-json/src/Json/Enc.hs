@@ -4,15 +4,21 @@
 module Json.Enc where
 
 import Data.Aeson (Encoding, Value (..))
+import Data.Aeson qualified as Json
+import Data.Aeson.Encode.Pretty qualified as Aeson.Pretty
 import Data.Aeson.Encoding qualified as AesonEnc
+import Data.Aeson.Encoding qualified as Json.Enc
+import Data.Aeson.Encoding qualified as Json.Encoding
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap (KeyMap)
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.ByteString.Lazy qualified as LazyBytes
 import Data.Int (Int64)
 import Data.Map.Strict qualified as Map
 import Data.Scientific
 import Data.String (IsString (fromString))
 import Data.Text.Lazy qualified as Lazy
+import Data.Text.Lazy.Builder qualified as Text.Builder
 import Data.Time qualified as Time
 import Data.Time.Format.ISO8601 qualified as ISO8601
 import GHC.TypeLits
@@ -25,6 +31,9 @@ import PossehlAnalyticsPrelude
 newtype Enc = Enc {unEnc :: Encoding}
   deriving (Num, Fractional) via (NumLiteralOnly "Enc" Enc)
 
+instance Show Enc where
+  show e = e.unEnc & Json.Encoding.encodingToLazyByteString & bytesToTextUtf8UnsafeLazy & show
+
 -- | You can create an @Enc any@ that renders an 'Aeson.String' value with @OverloadedStrings@.
 instance IsString Enc where
   fromString = Enc . AesonEnc.string
@@ -35,9 +44,39 @@ instance IntegerLiteral Enc where
 
 -- | You can create an @Enc any@ that renders an 'Aeson.Number' value with an floating point literal.
 --
--- ATTN: Bear in mind that this will crash on repeating rationals, so only use for literals in code!
+-- __ATTN__: Bear in mind that this will crash on repeating rationals, so only use for literals in code!
 instance RationalLiteral Enc where
   rationalLiteral r = Enc $ AesonEnc.scientific (r & fromRational @Scientific)
+
+-- | Convert an 'Enc' to a strict UTF8-bytestring which is valid JSON (minified).
+encToBytesUtf8 :: Enc -> ByteString
+encToBytesUtf8 enc = enc & encToBytesUtf8Lazy & toStrictBytes
+
+-- | Convert an 'Enc' to a lazy UTF8-bytestring which is valid JSON (minified).
+encToBytesUtf8Lazy :: Enc -> LazyBytes.ByteString
+encToBytesUtf8Lazy enc = enc.unEnc & Json.Enc.encodingToLazyByteString
+
+-- | Convert an 'Enc' to a strict Text which is valid JSON (prettyfied).
+--
+-- __ATTN__: will re-parse the json through `Value`, so only use for user-interactions like pretty-printing.
+encToTextPretty :: Enc -> Text
+encToTextPretty enc =
+  enc
+    & encToTextPrettyLazy
+    & toStrict
+
+-- | Convert an 'Enc' to a lazy Text which is valid JSON (prettyfied).
+--
+-- __ATTN__: will re-parse the json through `Value`, so only use for user-interactions like pretty-printing.
+encToTextPrettyLazy :: Enc -> Lazy.Text
+encToTextPrettyLazy enc =
+  enc
+    & encToBytesUtf8Lazy
+    & Json.decode @Json.Value
+    & annotate "the json parser can’t parse json encodings??"
+    & unwrapError
+    & Aeson.Pretty.encodePrettyToTextBuilder
+    & Text.Builder.toLazyText
 
 -- | Embed an 'Encoding' verbatim (it’s a valid JSON value)
 encoding :: Encoding -> Enc
