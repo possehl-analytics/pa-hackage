@@ -13,7 +13,9 @@ import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap (KeyMap)
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Lazy qualified as LazyBytes
+import Data.Containers.ListUtils (nubOrdOn)
 import Data.Int (Int64)
+import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Scientific
 import Data.String (IsString (fromString))
@@ -122,11 +124,11 @@ nonEmpty f = list f . toList
 
 -- | Encode the given list of keys and their encoders as 'Object'.
 --
--- Like with 'Map.fromList', if the list contains the same key multiple times, the last value in the list is retained:
+-- If the list contains the same key multiple times, the first value in the list is retained:
 --
 -- @
 -- (object [ ("foo", 42), ("foo", 23) ])
--- ~= "{\"foo\":23}"
+-- ~= "{\"foo\":42}"
 -- @
 object :: Foldable t => t (Text, Enc) -> Enc
 object m =
@@ -134,8 +136,8 @@ object m =
     AesonEnc.dict
       AesonEnc.text
       (\recEnc -> recEnc.unEnc)
-      Map.foldrWithKey
-      (Map.fromList $ toList m)
+      (\f -> List.foldr (\(k, v) -> f k v))
+      (nubOrdOn fst $ toList m)
 
 -- | A tag/value encoder; See 'choice'
 data Choice = Choice Text Enc
