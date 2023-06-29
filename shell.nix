@@ -22,6 +22,8 @@ pkgs.mkShell {
       hps.nicify-lib
       hps.aeson-pretty
       hps.hscolour
+      hps.typed-process
+      hps.monad-logger
     ]))
     pkgs.cabal-install
     pkgs.haskell-language-server

@@ -117,6 +117,23 @@
                 "ansi-terminal",
                 "nicify-lib"
             ]
+        },
+        {
+            "name": "pa-run-command",
+            "version": "0.1.0.0",
+            "synopsis": "Helper functions for spawning subprocesses",
+            "description": "",
+            "modules": [
+                "RunCommand"
+            ],
+            "dependencies": [
+                "base <5",
+                "pa-prelude",
+                "text",
+                "bytestring",
+                "monad-logger",
+                "typed-process"
+            ]
         }
     ]
 }

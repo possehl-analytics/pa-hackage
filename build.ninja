@@ -87,6 +87,14 @@ build pa-pretty/pa-pretty.cabal : generate-cabal-file $builddir/pa-pretty.cabal.
   cabal-template = pa-template.cabal.mustache
   project-dir = pa-pretty
 
+build pa-run-command/LICENSE : copy-license
+build $builddir/pa-run-command.cabal.json : generate-cabal-file-data | project.json
+  cabal-package = pa-run-command
+  project-json = project.json
+build pa-run-command/pa-run-command.cabal : generate-cabal-file $builddir/pa-run-command.cabal.json | pa-template.cabal.mustache
+  cabal-template = pa-template.cabal.mustache
+  project-dir = pa-run-command
+
 
 # generate cabal.project
 build cabal.project : generate-cabal.project | cabal.project.mustache project.json
@@ -106,5 +114,6 @@ build build-all $
   pa-error-tree/pa-error-tree.cabal $
   pa-field-parser/pa-field-parser.cabal $
   pa-json/pa-json.cabal $
-  pa-pretty/pa-pretty.cabal
+  pa-pretty/pa-pretty.cabal $
+  pa-run-command/pa-run-command.cabal
   target = all
