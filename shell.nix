@@ -24,6 +24,7 @@ pkgs.mkShell {
       hps.hscolour
       hps.typed-process
       hps.monad-logger
+      hps.base64-bytestring
     ]))
     pkgs.cabal-install
     pkgs.haskell-language-server

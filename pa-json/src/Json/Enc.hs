@@ -12,6 +12,7 @@ import Data.Aeson.Encoding qualified as Json.Encoding
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap (KeyMap)
 import Data.Aeson.KeyMap qualified as KeyMap
+import Data.ByteString.Base64 qualified as Base64
 import Data.ByteString.Lazy qualified as LazyBytes
 import Data.Containers.ListUtils (nubOrdOn)
 import Data.Int (Int64)
@@ -23,7 +24,7 @@ import Data.Text.Lazy qualified as Lazy
 import Data.Text.Lazy.Builder qualified as Text.Builder
 import Data.Time qualified as Time
 import Data.Time.Format.ISO8601 qualified as ISO8601
-import GHC.TypeLits
+import GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import PossehlAnalyticsPrelude
 
 -- | A JSON encoder.
@@ -36,15 +37,15 @@ newtype Enc = Enc {unEnc :: Encoding}
 instance Show Enc where
   show e = e.unEnc & Json.Encoding.encodingToLazyByteString & bytesToTextUtf8UnsafeLazy & show
 
--- | You can create an @Enc any@ that renders an 'Aeson.String' value with @OverloadedStrings@.
+-- | You can create an @Enc any@ that renders a json string value with @OverloadedStrings@.
 instance IsString Enc where
   fromString = Enc . AesonEnc.string
 
--- | You can create an @Enc any@ that renders an 'Aeson.Number' value with an integer literal.
+-- | You can create an @Enc any@ that renders a json number value with an integer literal.
 instance IntegerLiteral Enc where
   integerLiteral = Enc . AesonEnc.integer
 
--- | You can create an @Enc any@ that renders an 'Aeson.Number' value with an floating point literal.
+-- | You can create an @Enc any@ that renders a json number value with an floating point literal.
 --
 -- __ATTN__: Bear in mind that this will crash on repeating rationals, so only use for literals in code!
 instance RationalLiteral Enc where
@@ -60,7 +61,7 @@ encToBytesUtf8Lazy enc = enc.unEnc & Json.Enc.encodingToLazyByteString
 
 -- | Convert an 'Enc' to a strict Text which is valid JSON (prettyfied).
 --
--- __ATTN__: will re-parse the json through `Value`, so only use for user-interactions like pretty-printing.
+-- __ATTN__: will re-parse the json through 'Json.Value', so only use for user-interactions like pretty-printing.
 encToTextPretty :: Enc -> Text
 encToTextPretty enc =
   enc
@@ -69,7 +70,7 @@ encToTextPretty enc =
 
 -- | Convert an 'Enc' to a lazy Text which is valid JSON (prettyfied).
 --
--- __ATTN__: will re-parse the json through `Value`, so only use for user-interactions like pretty-printing.
+-- __ATTN__: will re-parse the json through 'Json.Value', so only use for user-interactions like pretty-printing.
 encToTextPrettyLazy :: Enc -> Lazy.Text
 encToTextPrettyLazy enc =
   enc
@@ -80,49 +81,57 @@ encToTextPrettyLazy enc =
     & Aeson.Pretty.encodePrettyToTextBuilder
     & Text.Builder.toLazyText
 
--- | Embed an 'Encoding' verbatim (it’s a valid JSON value)
+-- | Embed a 'Json.Encoding' verbatim (it’s a valid JSON value)
 encoding :: Encoding -> Enc
 encoding = Enc
 
--- | Encode a 'Value' verbatim (it’s a valid JSON value)
+-- | Encode a 'Json.Value' verbatim (it’s a valid JSON value)
 value :: Value -> Enc
 value = Enc . AesonEnc.value
 
--- | Encode an empty 'Array'
+-- | Encode an empty json list
 emptyArray :: Enc
 emptyArray = Enc AesonEnc.emptyArray_
 
--- | Encode an empty 'Object'
+-- | Encode an empty json dict
 emptyObject :: Enc
 emptyObject = Enc AesonEnc.emptyObject_
 
--- | Encode a 'Text'
+-- | Encode a 'Text' as a json string
 text :: Text -> Enc
 text = Enc . AesonEnc.text
 
--- | Encode a lazy @Text@
+-- | Encode a lazy 'Text' as a json string
 lazyText :: Lazy.Text -> Enc
 lazyText = Enc . AesonEnc.lazyText
 
--- | Encode a 'String'
+-- | Encode a 'ByteString' as a base64-encoded json string
+base64Bytes :: ByteString -> Enc
+base64Bytes = Enc . AesonEnc.text . bytesToTextUtf8Unsafe . Base64.encode
+
+-- | Encode a 'Text' as a base64-encoded json string
+base64 :: Text -> Enc
+base64 = Enc . AesonEnc.text . bytesToTextUtf8Unsafe . Base64.encode . textToBytesUtf8
+
+-- | Encode a 'Prelude.String' as a json string
 string :: String -> Enc
 string = Enc . AesonEnc.string
 
--- | Encode as 'Null' if 'Nothing', else use the given encoder for @Just a@
+-- | Encode as json @null@ if 'Nothing', else use the given encoder for @Just a@
 nullOr :: (a -> Enc) -> Maybe a -> Enc
 nullOr inner = \case
   Nothing -> Enc AesonEnc.null_
   Just a -> inner a
 
--- | Encode a list as 'Array'
+-- | Encode a list as a json list
 list :: (a -> Enc) -> [a] -> Enc
 list f = Enc . AesonEnc.list (\a -> (f a).unEnc)
 
--- | Encode a 'NonEmpty' as an 'Array'.
+-- | Encode a 'NonEmpty' as a json list.
 nonEmpty :: (a -> Enc) -> NonEmpty a -> Enc
 nonEmpty f = list f . toList
 
--- | Encode the given list of keys and their encoders as 'Object'.
+-- | Encode the given list of keys and their encoders as json dict.
 --
 -- If the list contains the same key multiple times, the first value in the list is retained:
 --
@@ -169,7 +178,7 @@ singleChoice key encA =
           AesonEnc.pair "value" encA.unEnc
         ]
 
--- | Encode a 'Map'.
+-- | Encode a 'Map' as a json dict
 --
 -- We can’t really set the key to anything but text (We don’t keep the tag of 'Encoding')
 -- so instead we allow anything that’s coercible from text as map key (i.e. newtypes).
@@ -182,7 +191,7 @@ map valEnc m =
       Map.foldrWithKey
       m
 
--- | Encode a 'KeyMap'
+-- | Encode a 'KeyMap' as a json dict
 keyMap :: (v -> Enc) -> KeyMap v -> Enc
 keyMap valEnc m =
   Enc $
@@ -192,36 +201,36 @@ keyMap valEnc m =
       KeyMap.foldrWithKey
       m
 
--- | Encode 'Null'
+-- | Encode 'Json.Null'
 null :: Enc
 null = Enc AesonEnc.null_
 
--- | Encode 'Bool'
+-- | Encode a 'Prelude.Bool' as a json boolean
 bool :: Bool -> Enc
 bool = Enc . AesonEnc.bool
 
--- | Encode an 'Integer' as 'Number'.
+-- | Encode an 'Integer' as a json number.
 -- TODO: is it okay to just encode an arbitrarily-sized integer into json?
 integer :: Integer -> Enc
 integer = Enc . AesonEnc.integer
 
--- | Encode a 'Scientific' as 'Number'.
+-- | Encode a 'Scientific' as a json number.
 scientific :: Scientific -> Enc
 scientific = Enc . AesonEnc.scientific
 
--- | Encode a 'Natural' as 'Number'.
+-- | Encode a 'Natural' as a json number.
 natural :: Natural -> Enc
 natural = integer . toInteger @Natural
 
--- | Encode an 'Int' as 'Aeson.Number'.
+-- | Encode an 'Int' as a json number.
 int :: Int -> Enc
 int = Enc . AesonEnc.int
 
--- | Encode an 'Int64' as 'Number'.
+-- | Encode an 'Int64' as a json number.
 int64 :: Int64 -> Enc
 int64 = Enc . AesonEnc.int64
 
--- | Encode UTCTime as 'String', as an ISO8601 timestamp with timezone (@yyyy-mm-ddThh:mm:ss[.sss]Z@)
+-- | Encode 'Time.UTCTime' as a json string, as an ISO8601 timestamp with timezone (@yyyy-mm-ddThh:mm:ss[.sss]Z@)
 utcTime :: Time.UTCTime -> Enc
 utcTime =
   text . stringToText . ISO8601.iso8601Show @Time.UTCTime
