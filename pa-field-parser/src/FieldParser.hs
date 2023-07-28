@@ -1,5 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module FieldParser where
 
@@ -12,6 +14,7 @@ import Data.Attoparsec.ByteString qualified as AttoBytes
 import Data.Attoparsec.Text qualified as Atto
 import Data.CaseInsensitive qualified as CaseInsensitive
 import Data.Error.Tree
+import Data.Fixed qualified as Fixed
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Scientific (Scientific)
@@ -21,6 +24,8 @@ import Data.Semigroupoid qualified as Semigroupoid
 import Data.Text qualified as Text
 import Data.Time qualified as Time
 import Data.Time.Format.ISO8601 qualified as Time.Format.ISO
+import Language.Haskell.TH qualified as TH
+import Language.Haskell.TH.Syntax qualified as TH
 import PossehlAnalyticsPrelude
 import Text.ParserCombinators.ReadPrec qualified as Read
 import Prelude hiding (or)
@@ -519,3 +524,34 @@ attoparsecBytes err parser =
    in FieldParser $ \bytes -> case parseAll bytes of
         Left _attoErr -> Left err
         Right a -> Right a
+
+-- | Parse a literal value at compile time. This is used with Template Haskell, like so:
+--
+-- > $$("2023-07-27" & literal hyphenatedDay) :: Time.Day
+--
+-- You need the double @$$@!
+--
+-- ATTN: This needs an instance of the 'TH.Lift' class for the output type.
+-- Many library types don’t yet implement this class, so we have to provide the instances ourselves.
+-- See NOTE: Lift for library types
+literal :: forall from to. TH.Lift to => FieldParser from to -> from -> TH.Code TH.Q to
+literal parser s = do
+  case runFieldParser parser s of
+    Right a -> [||a||]
+    Left err -> TH.liftCode (err & prettyError & textToString & fail)
+
+{-
+NOTE: Lift for library types
+
+Newer versions of Template Haskell provide a `Lift` class,
+which lets us parse types from e.g. strings at compile time.
+
+But many types do not implement the stock `Lift` instance yet
+(it can be auto-derived by GHC if requested).
+-}
+
+deriving stock instance (TH.Lift Fixed.Pico)
+
+deriving stock instance (TH.Lift Time.TimeOfDay)
+
+deriving stock instance (TH.Lift Time.Day)

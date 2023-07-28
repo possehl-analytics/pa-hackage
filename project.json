@@ -69,6 +69,7 @@
                 "containers",
                 "scientific",
                 "semigroupoids",
+                "template-haskell",
                 "text",
                 "time"
             ]
