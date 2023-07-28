@@ -19,8 +19,11 @@ import Data.Scientific qualified as Scientific
 import Data.Semigroup.Foldable (Foldable1 (toNonEmpty))
 import Data.Semigroupoid qualified as Semigroupoid
 import Data.Text qualified as Text
+import Data.Time qualified as Time
+import Data.Time.Format.ISO8601 qualified as Time.Format.ISO
 import PossehlAnalyticsPrelude
 import Text.ParserCombinators.ReadPrec qualified as Read
+import Prelude hiding (or)
 
 -- | Parser for a field. TODO: define what a field is
 --
@@ -145,6 +148,12 @@ utf8 = FieldParser $ \bytes -> case bytesToTextUtf8 bytes of
   Left _err -> Left $ "Not a valid UTF-8 string"
   Right a -> Right a
 
+-- | Assert that the string is not empty
+notEmptyStringP :: FieldParser Text Text
+notEmptyStringP = FieldParser $ \case
+  "" -> Left [fmt|String cannot be empty|]
+  t -> Right t
+
 -- | A decimal number with an optional `+` or `-` sign character.
 signedDecimal :: FieldParser Text Integer
 signedDecimal =
@@ -241,6 +250,34 @@ bounded err = FieldParser $ \num -> case num & fromIntegerBounded of
     iMinBound = toInteger (minBound :: i)
     iMaxBound = toInteger (maxBound :: i)
 
+-- | ex: @2021-02-23@
+hyphenatedDay :: FieldParser Text Time.Day
+hyphenatedDay =
+  FieldParser $ \t ->
+    case parseDay t of
+      Nothing -> Left $ [fmt|Not a valid date of format yyyy-mm-dd: "{t}"|]
+      Just day -> Right day
+  where
+    parseDay :: Text -> Maybe Time.Day
+    parseDay t =
+      t
+        & textToString
+        & Time.Format.ISO.iso8601ParseM @Maybe @Time.Day
+
+-- | @yyyy-mm-ddThh:mm:ss[.sss]Z@ (ISO 8601:2004(E) sec. 4.3.2 extended format)
+utcTime :: FieldParser Text Time.UTCTime
+utcTime =
+  FieldParser $ \t ->
+    case parseTime t of
+      Nothing -> Left $ [fmt|Not a valid date of format `yyyy-mm-ddThh:mm:ss[.sss]Z` (ISO 8601:2004(E) sec. 4.3.2 extended format): "{t}"|]
+      Just day -> Right day
+  where
+    parseTime :: Text -> Maybe Time.UTCTime
+    parseTime t =
+      t
+        & textToString
+        & Time.Format.ISO.iso8601ParseM @Maybe @Time.UTCTime
+
 -- | Example of how to create a more “complicated” parser that checks whether a value
 -- is between two other values.
 clamped ::
@@ -322,6 +359,16 @@ or parsers =
     flipEither :: Either a b -> Either b a
     flipEither (Left err) = Right err
     flipEither (Right a) = Left a
+
+-- | Parse into Nothing if the Monoid (e.g. Text, Map etc.) was empty
+emptyOr :: forall s a. (Eq s, Show s, Monoid s) => FieldParser s a -> FieldParser' Error s (Maybe a)
+emptyOr inner =
+  FieldParser $ \from ->
+    if from == mempty
+      then Right Nothing
+      else case runFieldParser inner from of
+        Left err -> Left $ errorContext [fmt|Value was neither empty ("{mempty @s & show}") nor|] err
+        Right a -> Right (Just a)
 
 -- | Given a pretty printing function, it will create a parser
 -- that uses the inverse function to parse the field.

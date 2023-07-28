@@ -62,14 +62,15 @@
                 "base <5",
                 "pa-prelude",
                 "pa-error-tree",
+                "aeson-better-errors",
+                "aeson",
+                "attoparsec",
+                "case-insensitive",
                 "containers",
                 "scientific",
                 "semigroupoids",
-                "aeson",
-                "aeson-better-errors",
-                "attoparsec",
-                "case-insensitive",
-                "text"
+                "text",
+                "time"
             ]
         },
         {
