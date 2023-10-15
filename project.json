@@ -19,9 +19,12 @@
                 "validation-selective",
                 "profunctors",
                 "semigroupoids",
+                "scientific",
                 "bytestring",
                 "containers",
-                "these"
+                "template-haskell",
+                "these",
+                "vector"
             ]
         },
         {
@@ -87,6 +90,7 @@
                 "base <5",
                 "pa-prelude",
                 "pa-label",
+                "pa-field-parser",
                 "pa-error-tree",
                 "aeson",
                 "aeson-pretty",
@@ -97,9 +101,7 @@
                 "scientific",
                 "time",
                 "text",
-                "vector",
-                "hspec-core",
-                "hspec-expectations"
+                "vector"
             ]
         },
         {

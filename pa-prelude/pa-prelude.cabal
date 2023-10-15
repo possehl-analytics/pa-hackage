@@ -80,7 +80,10 @@ library
       validation-selective,
       profunctors,
       semigroupoids,
+      scientific,
       bytestring,
       containers,
+      template-haskell,
       these,
+      vector,
 

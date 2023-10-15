@@ -99,6 +99,7 @@ module PossehlAnalyticsPrelude
     validationToThese,
     thenThese,
     thenValidate,
+    thenValidateM,
     NonEmpty ((:|)),
     singleton,
     nonEmpty,
@@ -107,7 +108,9 @@ module PossehlAnalyticsPrelude
     toNonEmptyDefault,
     maximum1,
     minimum1,
+    Vector,
     Generic,
+    Lift,
     Semigroup,
     sconcat,
     Monoid,
@@ -119,6 +122,7 @@ module PossehlAnalyticsPrelude
     Identity (Identity, runIdentity),
     Natural,
     intToNatural,
+    Scientific,
     Contravariant,
     contramap,
     (>$<),
@@ -183,6 +187,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Maybe qualified as Maybe
 import Data.Profunctor (Profunctor, dimap, lmap, rmap)
+import Data.Scientific (Scientific)
 import Data.Semigroup (Max (Max, getMax), Min (Min, getMin), sconcat)
 import Data.Semigroup.Foldable (Foldable1 (fold1), foldMap1)
 import Data.Semigroup.Traversable (Traversable1)
@@ -197,6 +202,7 @@ import Data.Text.Lazy qualified
 import Data.Text.Lazy.Encoding qualified
 import Data.These (These (That, These, This))
 import Data.Traversable (for)
+import Data.Vector (Vector)
 import Data.Void (Void, absurd)
 import Data.Word (Word8)
 import GHC.Exception (errorCallWithCallStackException)
@@ -205,6 +211,7 @@ import GHC.Generics (Generic)
 import GHC.Natural (Natural)
 import GHC.Records (HasField)
 import GHC.Stack (HasCallStack)
+import Language.Haskell.TH.Syntax (Lift)
 import PyF (fmt)
 import System.Exit qualified
 import System.IO qualified
@@ -233,7 +240,7 @@ doAs :: forall m a. m a -> m a
 doAs = id
 
 -- | Forward-applying 'contramap', like '&'/'$' and '<&>'/'<$>' but for '>$<'.
-(>&<) :: Contravariant f => f b -> (a -> b) -> f a
+(>&<) :: (Contravariant f) => f b -> (a -> b) -> f a
 (>&<) = flip contramap
 
 infixl 5 >&<
@@ -246,7 +253,7 @@ infixl 5 >&<
 -- for functions : (a -> b) -> (b -> c) -> (a -> c)
 -- for Folds: Fold a b -> Fold b c -> Fold a c
 -- @@
-(&>>) :: Semigroupoid s => s a b -> s b c -> s a c
+(&>>) :: (Semigroupoid s) => s a b -> s b c -> s a c
 (&>>) = flip Data.Semigroupoid.o
 
 -- like >>>
@@ -319,8 +326,8 @@ showToText = stringToText . show
 -- >>> charToWordUnsafe ','
 -- 44
 charToWordUnsafe :: Char -> Word8
-charToWordUnsafe = fromIntegral . Data.Char.ord
 {-# INLINE charToWordUnsafe #-}
+charToWordUnsafe = fromIntegral . Data.Char.ord
 
 -- | Single element in a (non-empty) list.
 singleton :: a -> NonEmpty a
@@ -354,7 +361,7 @@ annotate err = \case
   Just a -> Right a
 
 -- | Map the same function over both sides of a Bifunctor (e.g. a tuple).
-both :: Bifunctor bi => (a -> b) -> bi a a -> bi b b
+both :: (Bifunctor bi) => (a -> b) -> bi a a -> bi b b
 both f = bimap f f
 
 -- | Find the first element for which pred returns `Just a`, and return the `a`.
@@ -368,7 +375,7 @@ both f = bimap f f
 -- Nothing
 -- >>> findMaybe (Text.Read.readMaybe @Int) ["foo", "34.40", "34", "abc"]
 -- Just 34
-findMaybe :: Foldable t => (a -> Maybe b) -> t a -> Maybe b
+findMaybe :: (Foldable t) => (a -> Maybe b) -> t a -> Maybe b
 findMaybe mPred list =
   let pred' x = Maybe.isJust $ mPred x
    in case Foldable.find pred' list of
@@ -381,7 +388,7 @@ findMaybe mPred list =
 --
 -- This is a useful error handling function in many circumstances,
 -- because it won’t only return the first error that happens, but rather all of them.
-traverseValidate :: forall t a err b. Traversable t => (a -> Either err b) -> t a -> Either (NonEmpty err) (t b)
+traverseValidate :: forall t a err b. (Traversable t) => (a -> Either err b) -> t a -> Either (NonEmpty err) (t b)
 traverseValidate f as =
   as
     & traverse @t @(Validation _) (eitherToListValidation . f)
@@ -448,15 +455,26 @@ thenThese f x = do
   th <- x
   join <$> traverse f th
 
--- | Nested validating bind-like combinator inside some other @m@.
+-- | Nested validating bind-like combinator.
 --
 -- Use if you want to collect errors, and want to chain multiple functions returning 'Validation'.
 thenValidate ::
+  (a -> Validation err b) ->
+  Validation err a ->
+  Validation err b
+thenValidate f = \case
+  Success a -> f a
+  Failure err -> Failure err
+
+-- | Nested validating bind-like combinator inside some other @m@.
+--
+-- Use if you want to collect errors, and want to chain multiple functions returning 'Validation'.
+thenValidateM ::
   (Monad m) =>
   (a -> m (Validation err b)) ->
   m (Validation err a) ->
   m (Validation err b)
-thenValidate f x =
+thenValidateM f x =
   eitherToValidation <$> do
     x' <- validationToEither <$> x
     case x' of
@@ -489,23 +507,23 @@ exitWithMessage msg = do
 --
 -- … since @(Semigroup err => Validation err a)@ is a @Semigroup@/@Monoid@ itself.
 traverseFold :: (Applicative ap, Traversable t, Monoid m) => (a -> ap m) -> t a -> ap m
+{-# INLINE traverseFold #-}
 traverseFold f xs =
   -- note: could be weakened to (Foldable t) via `getAp . foldMap (Ap . f)`
   fold <$> traverse f xs
-{-# INLINE traverseFold #-}
 
 -- | Like 'traverseFold', but fold over a semigroup instead of a Monoid, by providing a starting element.
 traverseFoldDefault :: (Applicative ap, Traversable t, Semigroup m) => m -> (a -> ap m) -> t a -> ap m
+{-# INLINE traverseFoldDefault #-}
 traverseFoldDefault def f xs = foldDef def <$> traverse f xs
   where
     foldDef = foldr (<>)
-{-# INLINE traverseFoldDefault #-}
 
 -- | Same as 'traverseFold', but with a 'Semigroup' and 'Traversable1' restriction.
 traverseFold1 :: (Applicative ap, Traversable1 t, Semigroup s) => (a -> ap s) -> t a -> ap s
+{-# INLINE traverseFold1 #-}
 -- note: cannot be weakened to (Foldable1 t) because there is no `Ap` for Semigroup (No `Apply` typeclass)
 traverseFold1 f xs = fold1 <$> traverse f xs
-{-# INLINE traverseFold1 #-}
 
 -- | Use this in places where the code is still to be implemented.
 --
@@ -515,13 +533,13 @@ traverseFold1 f xs = fold1 <$> traverse f xs
 --
 -- Uses the same trick as https://hackage.haskell.org/package/protolude-0.3.0/docs/src/Protolude.Error.html#error
 {-# WARNING todo "'todo' (undefined code) remains in code" #-}
-todo :: forall (r :: RuntimeRep). forall (a :: TYPE r). HasCallStack => a
+todo :: forall (r :: RuntimeRep). forall (a :: TYPE r). (HasCallStack) => a
 todo = raise# (errorCallWithCallStackException "This code was not yet implemented: TODO" ?callStack)
 
 -- | Convert an integer to a 'Natural' if possible
 --
 -- Named the same as the function from "GHC.Natural", but does not crash.
-intToNatural :: Integral a => a -> Maybe Natural
+intToNatural :: (Integral a) => a -> Maybe Natural
 intToNatural i =
   if i < 0
     then Nothing
@@ -597,7 +615,7 @@ enumerateAll = [minBound .. maxBound]
 -- | Create a 'Map' from a list of values, extracting the map key from each value. Like 'Map.fromList'.
 --
 -- Attention: if the key is not unique, the earliest value with the key will be in the map.
-mapFromListOn :: Ord key => (a -> key) -> [a] -> Map key a
+mapFromListOn :: (Ord key) => (a -> key) -> [a] -> Map key a
 mapFromListOn f xs = xs <&> (\x -> (f x, x)) & Map.fromList
 
 -- | Create a 'Map' from a list of values, merging multiple values at the same key with '<>' (left-to-right)
@@ -633,7 +651,7 @@ mapFromListOnMerge f xs =
 
 -- Sum {getSum = 6}
 
-ifTrue :: Monoid m => Bool -> m -> m
+ifTrue :: (Monoid m) => Bool -> m -> m
 ifTrue pred' m = if pred' then m else mempty
 
 -- | If the given @Maybe@ is @Just@, return the @m@, else return mempty.
@@ -656,5 +674,5 @@ ifTrue pred' m = if pred' then m else mempty
 
 -- Sum {getSum = 6}
 
-ifExists :: Monoid m => Maybe m -> m
+ifExists :: (Monoid m) => Maybe m -> m
 ifExists = fold

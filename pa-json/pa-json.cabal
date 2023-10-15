@@ -75,6 +75,7 @@ library
       base <5,
       pa-prelude,
       pa-label,
+      pa-field-parser,
       pa-error-tree,
       aeson,
       aeson-pretty,
@@ -86,6 +87,4 @@ library
       time,
       text,
       vector,
-      hspec-core,
-      hspec-expectations,
 

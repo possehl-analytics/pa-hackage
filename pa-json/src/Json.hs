@@ -4,17 +4,47 @@
 module Json where
 
 import Data.Aeson (FromJSON (parseJSON), ToJSON (toEncoding, toJSON), Value (..), withObject)
+import Data.Aeson qualified as Json
 import Data.Aeson.BetterErrors qualified as Json
-import Data.Aeson.KeyMap qualified as KeyMap
+import Data.Aeson.Types qualified
 import Data.Error.Tree
+import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes)
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Data.Time (UTCTime)
 import Data.Vector qualified as Vector
+import FieldParser (FieldParser)
+import FieldParser qualified as Field
 import Label
 import PossehlAnalyticsPrelude
-import Test.Hspec.Core.Spec (describe, it)
-import Test.Hspec.Core.Spec qualified as Hspec
-import Test.Hspec.Expectations (shouldBe)
+
+-- | Use a "Data.Aeson.BetterErrors" parser to implement 'FromJSON'’s 'parseJSON' method.
+--
+-- @
+-- instance FromJSON Foo where
+--   parseJSON = Json.toParseJSON parseFoo
+-- @
+toParseJSON ::
+  -- | the error type is 'Error', if you need 'ErrorTree' use 'toParseJSONErrorTree'
+  Json.Parse Error a ->
+  Value ->
+  Data.Aeson.Types.Parser a
+toParseJSON = Json.toAesonParser prettyError
+
+-- | Use a "Data.Aeson.BetterErrors" parser to implement 'FromJSON'’s 'parseJSON' method.
+--
+-- @
+-- instance FromJSON Foo where
+--   parseJSON = Json.toParseJSON parseFoo
+-- @
+toParseJSONErrorTree ::
+  -- | the error type is 'ErrorTree', if you need 'Error' use 'toParseJSON'
+  Json.Parse ErrorTree a ->
+  Value ->
+  Data.Aeson.Types.Parser a
+toParseJSONErrorTree = Json.toAesonParser prettyErrorTree
 
 -- | Convert a 'Json.ParseError' to a corresponding 'ErrorTree'
 --
@@ -38,6 +68,54 @@ parseErrorTree contextMsg errs =
     & singleError
     & nestedError contextMsg
 
+-- | Lift the parser error to an error tree
+asErrorTree :: (Functor m) => Json.ParseT Error m a -> Json.ParseT ErrorTree m a
+asErrorTree = Json.mapError singleError
+
+-- | Parse the json array into a 'Set'.
+asArraySet ::
+  (Ord a, Monad m) =>
+  Json.ParseT err m a ->
+  Json.ParseT err m (Set a)
+asArraySet inner = Set.fromList <$> Json.eachInArray inner
+
+-- | Parse the json object into a 'Map'.
+asObjectMap ::
+  (Monad m) =>
+  Json.ParseT err m a ->
+  Json.ParseT err m (Map Text a)
+asObjectMap inner = Map.fromList <$> Json.eachInObject inner
+
+-- | Parse as json array and count the number of elements in the array.
+countArrayElements :: (Monad m) => Json.ParseT Error m Natural
+countArrayElements = Field.toJsonParser ((jsonArray <&> Vector.length) >>> Field.integralToNatural)
+  where
+    -- I don’t want to add this to the FieldParser module, cause users should not be dealing with arrays manually.
+    jsonArray :: FieldParser Json.Value (Vector Json.Value)
+    jsonArray = Field.FieldParser $ \case
+      Json.Array vec -> Right vec
+      _ -> Left "Not a json array"
+
+-- | Json string containing a UTC timestamp,
+-- @yyyy-mm-ddThh:mm:ss[.sss]Z@ (ISO 8601:2004(E) sec. 4.3.2 extended format)
+asUtcTime :: (Monad m) => Json.ParseT Error m UTCTime
+asUtcTime = Field.toJsonParser (Field.jsonString >>> Field.utcTime)
+
+-- | Json string containing a UTC timestamp.
+-- | Accepts multiple timezone formats.
+-- Do not use this if you can force the input to use the `Z` UTC notation (e.g. in a CSV), use 'utcTime' instead.
+--
+-- Accepts
+--
+-- * UTC timestamps: @yyyy-mm-ddThh:mm:ss[.sss]Z@
+-- * timestamps with time zone: @yyyy-mm-ddThh:mm:ss[.sss]±hh:mm@
+--
+-- ( both ISO 8601:2004(E) sec. 4.3.2 extended format)
+--
+-- The time zone of the second kind of timestamp is taken into account, but normalized to UTC (it’s not preserved what the original time zone was)
+asUtcTimeLenient :: (Monad m) => Json.ParseT Error m UTCTime
+asUtcTimeLenient = Field.toJsonParser (Field.jsonString >>> Field.utcTimeLenient)
+
 -- | Parse a key from the object, à la 'Json.key', return a labelled value.
 --
 -- We don’t provide a version that infers the json object key,
@@ -50,7 +128,7 @@ parseErrorTree contextMsg errs =
 -- @@
 keyLabel ::
   forall label err m a.
-  Monad m =>
+  (Monad m) =>
   Text ->
   Json.ParseT err m a ->
   Json.ParseT err m (Label label a)
@@ -67,7 +145,7 @@ keyLabel = do
 -- @@
 keyLabel' ::
   forall label err m a.
-  Monad m =>
+  (Monad m) =>
   Proxy label ->
   Text ->
   Json.ParseT err m a ->
@@ -86,7 +164,7 @@ keyLabel' Proxy key parser = label @label <$> Json.key key parser
 -- @@
 keyLabelMay ::
   forall label err m a.
-  Monad m =>
+  (Monad m) =>
   Text ->
   Json.ParseT err m a ->
   Json.ParseT err m (Label label (Maybe a))
@@ -103,12 +181,14 @@ keyLabelMay = do
 -- @@
 keyLabelMay' ::
   forall label err m a.
-  Monad m =>
+  (Monad m) =>
   Proxy label ->
   Text ->
   Json.ParseT err m a ->
   Json.ParseT err m (Label label (Maybe a))
 keyLabelMay' Proxy key parser = label @label <$> Json.keyMay key parser
+
+-- NOTE: keyRenamed Test in "Json.JsonTest", due to import cycles.
 
 -- | Like 'Json.key', but allows a list of keys that are tried in order.
 --
@@ -116,7 +196,7 @@ keyLabelMay' Proxy key parser = label @label <$> Json.keyMay key parser
 -- The first key is the most up-to-date version of a key, the others are for backward-compatibility.
 --
 -- If a key (new or old) exists, the inner parser will always be executed for that key.
-keyRenamed :: Monad m => NonEmpty Text -> Json.ParseT err m a -> Json.ParseT err m a
+keyRenamed :: (Monad m) => NonEmpty Text -> Json.ParseT err m a -> Json.ParseT err m a
 keyRenamed (newKey :| oldKeys) inner =
   keyRenamedTryOldKeys oldKeys inner >>= \case
     Nothing -> Json.key newKey inner
@@ -128,14 +208,14 @@ keyRenamed (newKey :| oldKeys) inner =
 -- The first key is the most up-to-date version of a key, the others are for backward-compatibility.
 --
 -- If a key (new or old) exists, the inner parser will always be executed for that key.
-keyRenamedMay :: Monad m => NonEmpty Text -> Json.ParseT err m a -> Json.ParseT err m (Maybe a)
+keyRenamedMay :: (Monad m) => NonEmpty Text -> Json.ParseT err m a -> Json.ParseT err m (Maybe a)
 keyRenamedMay (newKey :| oldKeys) inner =
   keyRenamedTryOldKeys oldKeys inner >>= \case
     Nothing -> Json.keyMay newKey inner
     Just parse -> Just <$> parse
 
 -- | Helper function for 'keyRenamed' and 'keyRenamedMay' that returns the parser for the first old key that exists, if any.
-keyRenamedTryOldKeys :: Monad m => [Text] -> Json.ParseT err m a -> Json.ParseT err m (Maybe (Json.ParseT err m a))
+keyRenamedTryOldKeys :: (Monad m) => [Text] -> Json.ParseT err m a -> Json.ParseT err m (Maybe (Json.ParseT err m a))
 keyRenamedTryOldKeys oldKeys inner = do
   oldKeys & traverse tryOld <&> catMaybes <&> nonEmpty <&> \case
     Nothing -> Nothing
@@ -145,37 +225,6 @@ keyRenamedTryOldKeys oldKeys inner = do
       Json.keyMay key (pure ()) <&> \case
         Just () -> Just $ Json.key key inner
         Nothing -> Nothing
-
-test_keyRenamed :: Hspec.Spec
-test_keyRenamed = do
-  describe "keyRenamed" $ do
-    let parser = keyRenamed ("new" :| ["old"]) Json.asText
-    let p = Json.parseValue @() parser
-    it "accepts the new key and the old key" $ do
-      p (Object (KeyMap.singleton "new" (String "text")))
-        `shouldBe` (Right "text")
-      p (Object (KeyMap.singleton "old" (String "text")))
-        `shouldBe` (Right "text")
-    it "fails with the old key in the error if the inner parser is wrong" $ do
-      p (Object (KeyMap.singleton "old" Null))
-        `shouldBe` (Left (Json.BadSchema [Json.ObjectKey "old"] (Json.WrongType Json.TyString Null)))
-    it "fails with the new key in the error if the inner parser is wrong" $ do
-      p (Object (KeyMap.singleton "new" Null))
-        `shouldBe` (Left (Json.BadSchema [Json.ObjectKey "new"] (Json.WrongType Json.TyString Null)))
-    it "fails if the key is missing" $ do
-      p (Object KeyMap.empty)
-        `shouldBe` (Left (Json.BadSchema [] (Json.KeyMissing "new")))
-  describe "keyRenamedMay" $ do
-    let parser = keyRenamedMay ("new" :| ["old"]) Json.asText
-    let p = Json.parseValue @() parser
-    it "accepts the new key and the old key" $ do
-      p (Object (KeyMap.singleton "new" (String "text")))
-        `shouldBe` (Right (Just "text"))
-      p (Object (KeyMap.singleton "old" (String "text")))
-        `shouldBe` (Right (Just "text"))
-    it "allows the old and new key to be missing" $ do
-      p (Object KeyMap.empty)
-        `shouldBe` (Right Nothing)
 
 -- | A simple type isomorphic to `()` that that transforms to an empty json object and parses
 data EmptyObject = EmptyObject
@@ -190,5 +239,5 @@ instance ToJSON EmptyObject where
   toEncoding EmptyObject = toEncoding $ Object mempty
 
 -- | Create a json array from a list of json values.
-jsonArray :: [Value] -> Value
-jsonArray xs = xs & Vector.fromList & Array
+mkJsonArray :: [Value] -> Value
+mkJsonArray xs = xs & Vector.fromList & Array

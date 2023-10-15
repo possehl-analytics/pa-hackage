@@ -17,7 +17,6 @@ import Data.Error.Tree
 import Data.Fixed qualified as Fixed
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
-import Data.Scientific (Scientific)
 import Data.Scientific qualified as Scientific
 import Data.Semigroup.Foldable (Foldable1 (toNonEmpty))
 import Data.Semigroupoid qualified as Semigroupoid
@@ -83,7 +82,7 @@ toParseJSON ::
 toParseJSON parser =
   Json.toAesonParser
     prettyError
-    (jsonParser parser)
+    (toJsonParser parser)
 
 -- | Turn a @FieldParser' ErrorTree Value@ directly into a valid 'parseJSON` implementation.
 --
@@ -95,7 +94,7 @@ toParseJSONErrorTree ::
 toParseJSONErrorTree parser =
   Json.toAesonParser
     prettyErrorTree
-    (jsonParser parser)
+    (toJsonParser parser)
 
 toReadPrec ::
   -- | ReadPrec to base this parser on (e.g. use @readPrec \@Text@@ to parse the same as Text)
@@ -109,8 +108,8 @@ toReadPrec innerReadPrec parser = do
     Right a -> pure a
 
 -- | Turn a @FieldParser Value@ into an 'Json.ParseT` which parses this value.
-jsonParser :: Monad m => FieldParser' err Json.Value to -> Json.ParseT err m to
-jsonParser parser =
+toJsonParser :: (Monad m) => FieldParser' err Json.Value to -> Json.ParseT err m to
+toJsonParser parser =
   ( Json.asValue
       >>= ( \from ->
               runFieldParser parser from & \case
@@ -191,12 +190,12 @@ signedDecimalNatural =
     Cat.>>> integralToNatural @Integer
 
 -- | Parse any integral into a natural number, fails if the integral is negative.
-integralToNatural :: Integral i => FieldParser i Natural
+integralToNatural :: (Integral i) => FieldParser i Natural
 integralToNatural =
   FieldParser (\i -> i & intToNatural & annotate [fmt|Number must be 0 or positive, but was negative: {toInteger i}|])
 
 -- | Parse any integral to an 'Integer'. This can never fail, but is here to mirror 'integralToNatural'.
-integralToInteger :: Integral i => FieldParser' err i Integer
+integralToInteger :: (Integral i) => FieldParser' err i Integer
 integralToInteger = lmap (fromIntegral @_ @Integer) Cat.id
 
 -- | An arbitrary-precision number in scientific notation.
@@ -227,7 +226,7 @@ boundedScientificIntegral err = FieldParser $ \s -> case Scientific.toBoundedInt
 -- * don’t wrap around the bound
 -- * don’t fill up all our memory
 -- * Fit into the available floating point representation space
-boundedScientificRealFloat :: RealFloat d => FieldParser Scientific d
+boundedScientificRealFloat :: (RealFloat d) => FieldParser Scientific d
 boundedScientificRealFloat = FieldParser $ \s ->
   Scientific.toBoundedRealFloat s
     & first
@@ -269,7 +268,8 @@ hyphenatedDay =
         & textToString
         & Time.Format.ISO.iso8601ParseM @Maybe @Time.Day
 
--- | @yyyy-mm-ddThh:mm:ss[.sss]Z@ (ISO 8601:2004(E) sec. 4.3.2 extended format)
+-- | Parse a timestamp into a UTC time, accepting only UTC timestamps like
+-- @yyyy-mm-ddThh:mm:ss[.sss]Z@ (ISO 8601:2004(E) sec. 4.3.2 extended format)
 utcTime :: FieldParser Text Time.UTCTime
 utcTime =
   FieldParser $ \t ->
@@ -282,6 +282,31 @@ utcTime =
       t
         & textToString
         & Time.Format.ISO.iso8601ParseM @Maybe @Time.UTCTime
+
+-- | Parse a timestamp into a UTC time, accepting multiple timezone formats.
+-- Do not use this if you can force the input to use the `Z` UTC notation (e.g. in a CSV), use 'utcTime' instead.
+--
+-- Accepts
+--
+-- * UTC timestamps: @yyyy-mm-ddThh:mm:ss[.sss]Z@
+-- * timestamps with time zone: @yyyy-mm-ddThh:mm:ss[.sss]±hh:mm@
+--
+-- ( both ISO 8601:2004(E) sec. 4.3.2 extended format)
+--
+-- The time zone of the second kind of timestamp is taken into account, but normalized to UTC (it’s not preserved what the original time zone was)
+utcTimeLenient :: FieldParser Text Time.UTCTime
+utcTimeLenient =
+  FieldParser $ \t ->
+    case (t & parseTime @Time.UTCTime)
+      <|> (t & parseTime @Time.ZonedTime <&> Time.zonedTimeToUTC) of
+      Nothing -> Left $ [fmt|Not a valid date of format `yyyy-mm-ddThh:mm:ss[.sss]Z` or `@yyyy-mm-ddThh:mm:ss[.sss]±hh:mm@` (ISO 8601:2004(E) sec. 4.3.2 extended format): "{t}"|]
+      Just day -> Right day
+  where
+    parseTime :: (Time.Format.ISO.ISO8601 t) => Text -> Maybe t
+    parseTime t =
+      t
+        & textToString
+        & Time.Format.ISO.iso8601ParseM
 
 -- | Example of how to create a more “complicated” parser that checks whether a value
 -- is between two other values.
@@ -307,7 +332,7 @@ clamped lower upperExcl = FieldParser $ \a ->
 -- If you want to match on an 'Enum'-like type,
 -- you should probably use 'invertPretty' or 'invertPrettyCaseInsensitive' instead,
 -- which allows for exhaustiveness checks.
-oneOf :: Ord from => (from -> Text) -> [(from, to)] -> FieldParser from to
+oneOf :: (Ord from) => (from -> Text) -> [(from, to)] -> FieldParser from to
 oneOf errDisplay m =
   -- This doesn’t strictly need an 'Ord' instance, it can also use `findMaybe` with `==` instead of going through a map.
   oneOfMap errDisplay (Map.fromList m)
@@ -398,7 +423,7 @@ invertPrettyCaseInsensitive prettyFn =
     & lmap CaseInsensitive.mk
 
 -- | 'oneOf' but only one value possible
-exactly :: Eq from => (from -> Text) -> from -> FieldParser from from
+exactly :: (Eq from) => (from -> Text) -> from -> FieldParser from from
 exactly errDisplay from = FieldParser $ \from' ->
   if from == from'
     then Right from'
@@ -534,7 +559,7 @@ attoparsecBytes err parser =
 -- ATTN: This needs an instance of the 'TH.Lift' class for the output type.
 -- Many library types don’t yet implement this class, so we have to provide the instances ourselves.
 -- See NOTE: Lift for library types
-literal :: forall from to. TH.Lift to => FieldParser from to -> from -> TH.Code TH.Q to
+literal :: forall from to. (TH.Lift to) => FieldParser from to -> from -> TH.Code TH.Q to
 literal parser s = do
   case runFieldParser parser s of
     Right a -> [||a||]
