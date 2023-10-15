@@ -1,5 +1,11 @@
 # Revision history for pa-json
 
+## 0.3.0.0 -- 2023-10-15
+
+- rename `jsonArray` to `mkJsonArray`
+- add `toParseJson`, `toParseJSONErrorTree`, `asErrorTree`
+- add `asArraySet`, `asObjectMap`, `countArrayElements`, `asUtcTime`, `asUtcTimeLenient`
+
 ## 0.2.1.0 -- 2023-06-29
 
 - `Json.Enc`: Add `base64` and `base64Bytes`
