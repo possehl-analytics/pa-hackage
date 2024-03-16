@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE LambdaCase #-}
 
 module Label
@@ -16,9 +15,13 @@ module Label
     focusOnField,
     monoMapT2,
     tupleToT2,
+    zipT2,
+    unzipT2,
     T3 (..),
     monoMapT3,
     tupleToT3,
+    zipT3,
+    unzipT3,
 
     -- * Named Sums/Enums
     E2 (..),
@@ -91,7 +94,7 @@ instance HasField label (Label label value) value where
   getField (Label value) = value
 
 -- | Fetch a value from a record, like 'getField', but also keep it wrapped by its label.
-getLabel :: forall label record a. HasField label record a => record -> Label label a
+getLabel :: forall label record a. (HasField label record a) => record -> Label label a
 getLabel rec = rec & getField @label & label @label
 
 -- | 'fmap' over the contents of the labbelled value. Helper.
@@ -99,7 +102,7 @@ mapLabel :: forall label a b. (a -> b) -> Label label a -> Label label b
 mapLabel f (Label a) = Label @label $ f a
 
 -- | 'traverse' over the contents of the labbelled value. Helper.
-traverseLabel :: forall label f a b. Functor f => (a -> f b) -> Label label a -> f (Label label b)
+traverseLabel :: forall label f a b. (Functor f) => (a -> f b) -> Label label a -> f (Label label b)
 traverseLabel fab (Label a) = Label @label <$> fab a
 
 -- | A named 2-element tuple. Since the elements are named, you can access them with `.`.
@@ -153,7 +156,7 @@ instance (Monoid t1, Monoid t2) => Monoid (T2 l1 t1 l2 t2) where
 -- otherwise it cannot infer it.
 focusOnField ::
   forall field rec subrec t.
-  HasField field subrec t =>
+  (HasField field subrec t) =>
   (rec -> subrec) ->
   rec ->
   T2 field t "dat" rec
@@ -168,6 +171,29 @@ monoMapT2 f (T2 a b) = T2 (mapLabel f a) (mapLabel f b)
 -- @tupleToT2 @"left" @"right" ('c', True) :: T2 "left" Char "right" Bool@
 tupleToT2 :: forall l1 l2 t1 t2. (t1, t2) -> T2 l1 t1 l2 t2
 tupleToT2 (t1, t2) = T2 (label @l1 t1) (label @l2 t2)
+
+-- | If you have a tuple of lists, make it into a list of tuples. The names are attached to each value.
+zipT2 ::
+  forall l1 l2 t1 t2.
+  ( HasField l1 (T2 l1 [t1] l2 [t2]) [t1],
+    HasField l2 (T2 l1 [t1] l2 [t2]) [t2]
+  ) =>
+  T2 l1 [t1] l2 [t2] ->
+  [T2 l1 t1 l2 t2]
+zipT2 xs =
+  zipWith
+    (\t1 t2 -> T2 (label @l1 t1) (label @l2 t2))
+    (getField @l1 xs)
+    (getField @l2 xs)
+
+-- | If you have a list of tuples, make it into a tuple of lists. The names are attached to each value.
+unzipT2 :: forall l1 t1 l2 t2. [T2 l1 t1 l2 t2] -> T2 l1 [t1] l2 [t2]
+unzipT2 xs = xs <&> toTup & unzip & fromTup
+  where
+    toTup :: forall a b. T2 a t1 b t2 -> (t1, t2)
+    toTup (T2 a b) = (getField @a a, getField @b b)
+    fromTup :: (a, b) -> T2 l1 a l2 b
+    fromTup (t1, t2) = T2 (label @l1 t1) (label @l2 t2)
 
 -- | A named 3-element tuple. Since the elements are named, you can access them with `.`. See 'T2' for an example.
 data T3 (l1 :: Symbol) t1 (l2 :: Symbol) t2 (l3 :: Symbol) t3 = T3 (Label l1 t1) (Label l2 t2) (Label l3 t3)
@@ -200,6 +226,31 @@ monoMapT3 f (T3 a b c) = T3 (mapLabel f a) (mapLabel f b) (mapLabel f c)
 -- @tupleToT3 @"left" @"right" @"grip" ('c', True, Maybe 'x') :: T3 "left" Char "right" Bool "grip" (Maybe Char)@
 tupleToT3 :: forall l1 l2 l3 t1 t2 t3. (t1, t2, t3) -> T3 l1 t1 l2 t2 l3 t3
 tupleToT3 (t1, t2, t3) = T3 (label @l1 t1) (label @l2 t2) (label @l3 t3)
+
+-- | If you have a tuple of lists, make it into a list of tuples. The names are attached to each value.
+zipT3 ::
+  forall l1 l2 t1 t2 l3 t3.
+  ( HasField l1 (T3 l1 [t1] l2 [t2] l3 [t3]) [t1],
+    HasField l2 (T3 l1 [t1] l2 [t2] l3 [t3]) [t2],
+    HasField l3 (T3 l1 [t1] l2 [t2] l3 [t3]) [t3]
+  ) =>
+  T3 l1 [t1] l2 [t2] l3 [t3] ->
+  [T3 l1 t1 l2 t2 l3 t3]
+zipT3 xs =
+  zipWith3
+    (\t1 t2 t3 -> T3 (label @l1 t1) (label @l2 t2) (label @l3 t3))
+    (getField @l1 xs)
+    (getField @l2 xs)
+    (getField @l3 xs)
+
+-- | If you have a list of tuples, make it into a tuple of lists. The names are attached to each value.
+unzipT3 :: forall l1 t1 l2 t2 l3 t3. [T3 l1 t1 l2 t2 l3 t3] -> T3 l1 [t1] l2 [t2] l3 [t3]
+unzipT3 xs = xs <&> toTup & unzip3 & fromTup
+  where
+    toTup :: forall a b c. T3 a t1 b t2 c t3 -> (t1, t2, t3)
+    toTup (T3 a b c) = (getField @a a, getField @b b, getField @c c)
+    fromTup :: (a, b, c) -> T3 l1 a l2 b l3 c
+    fromTup (t1, t2, t3) = T3 (label @l1 t1) (label @l2 t2) (label @l3 t3)
 
 -- | A named 2-alternative sum (“'Either' with labels”).
 data E2 (l1 :: Symbol) t1 (l2 :: Symbol) t2
@@ -259,7 +310,7 @@ partitionE2 es =
     & (\(t1s, t2s) -> T2 (label @l1 t1s) (label @l2 t2s))
 
 -- | Map a monadic (actually just a functor-ic) function over each possibility in this enum. All fields have to have the same type.
-monoTraverseE2 :: Functor f => (t -> f t') -> E2 l1 t l2 t -> f (E2 l1 t' l2 t')
+monoTraverseE2 :: (Functor f) => (t -> f t') -> E2 l1 t l2 t -> f (E2 l1 t' l2 t')
 monoTraverseE2 f = \case
   E21 lbl -> lbl & traverseLabel f <&> E21
   E22 lbl -> lbl & traverseLabel f <&> E22
