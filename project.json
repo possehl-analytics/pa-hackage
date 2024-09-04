@@ -43,7 +43,7 @@
         },
         {
             "name": "pa-error-tree",
-            "version": "0.1.0.0",
+            "version": "0.1.1.0",
             "synopsis": "Collect a tree of errors and pretty-print",
             "description": "",
             "modules": [

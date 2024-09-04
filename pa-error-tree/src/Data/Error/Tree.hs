@@ -1,5 +1,9 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Data.Error.Tree where
 
+import Data.List qualified as List
+import Data.Sequence qualified as Seq
 import Data.String (IsString (..))
 import Data.Tree qualified as Tree
 import PossehlAnalyticsPrelude
@@ -107,3 +111,36 @@ prettyErrorTrees forest =
     & toList
     & Tree.drawForest
     & stringToText
+
+-- | Sometimes, ErrorTrees can get very large.
+-- In that case, it’s recommended to first think about whether you can e.g. chunk the validation logic.
+--
+-- But even so, restricting the size of the `ErrorTree` before printing it is often a good idea.
+--
+-- This will make sure the given `maxlength` and `maxdepth` are not exceeded, and insert warnings if some subtree was elided.
+restrictErrorTree ::
+  ( HasField "maxlength" dat Natural,
+    HasField "maxdepth" dat Natural
+  ) =>
+  dat ->
+  ErrorTree ->
+  ErrorTree
+restrictErrorTree dat (ErrorTree t) = ErrorTree $ go 0 t
+  where
+    go :: Natural -> Tree.Tree Error -> Tree.Tree Error
+    go curDepth (Tree.Node a children) = do
+      let maxlengthInt = dat.maxlength & fromIntegral @Natural @Int
+      let childplusone = children & List.take (maxlengthInt + 1) & Seq.fromList
+      if curDepth == dat.maxdepth
+        then Tree.Node a [Tree.Node [fmt|<More errors, max depth reached ({dat.maxdepth})>|] []]
+        else
+          Tree.Node a $
+            map (go (curDepth + 1)) $
+              toList $
+                if List.length childplusone > maxlengthInt
+                  then
+                    ( ( Seq.take maxlengthInt childplusone
+                          Seq.:|> (Tree.Node [fmt|<More errors, max length reached ({dat.maxlength})>|] [])
+                      )
+                    )
+                  else childplusone
