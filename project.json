@@ -31,7 +31,7 @@
         },
         {
             "name": "pa-label",
-            "version": "0.1.1.0",
+            "version": "0.1.2.0",
             "synopsis": "Labels, and labelled tuples and enums (GHC >9.2)",
             "description": "",
             "modules": [

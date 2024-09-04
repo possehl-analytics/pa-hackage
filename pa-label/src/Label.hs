@@ -15,6 +15,7 @@ module Label
     focusOnField,
     monoMapT2,
     tupleToT2,
+    addToT2,
     zipT2,
     unzipT2,
     T3 (..),
@@ -171,6 +172,10 @@ monoMapT2 f (T2 a b) = T2 (mapLabel f a) (mapLabel f b)
 -- @tupleToT2 @"left" @"right" ('c', True) :: T2 "left" Char "right" Bool@
 tupleToT2 :: forall l1 l2 t1 t2. (t1, t2) -> T2 l1 t1 l2 t2
 tupleToT2 (t1, t2) = T2 (label @l1 t1) (label @l2 t2)
+
+-- | Add a field to the end of a T2, turning it into a T3.
+addToT2 :: forall l1 l2 l3 t1 t2 t3. Label l3 t3 -> T2 l1 t1 l2 t2 -> T3 l1 t1 l2 t2 l3 t3
+addToT2 new (T2 a b) = T3 a b new
 
 -- | If you have a tuple of lists, make it into a list of tuples. The names are attached to each value.
 zipT2 ::
