@@ -8,6 +8,7 @@ pkgs.mkShell {
       hps.PyF
       hps.error
       hps.validation-selective
+      hps.foldl
       hps.these
       hps.semigroupoids
       hps.profunctors
@@ -24,6 +25,7 @@ pkgs.mkShell {
       hps.hscolour
       hps.typed-process
       hps.monad-logger
+      hps.mono-traversable
       hps.base64-bytestring
     ]))
     pkgs.cabal-install

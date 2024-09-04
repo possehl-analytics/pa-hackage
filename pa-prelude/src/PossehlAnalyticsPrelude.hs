@@ -1,6 +1,7 @@
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MagicHash #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module PossehlAnalyticsPrelude
   ( -- * Text conversions
@@ -10,6 +11,7 @@ module PossehlAnalyticsPrelude
     fmt,
     textToString,
     stringToText,
+    stringToBytesUtf8,
     showToText,
     textToBytesUtf8,
     textToBytesUtf8Lazy,
@@ -101,13 +103,24 @@ module PossehlAnalyticsPrelude
     thenValidate,
     thenValidateM,
     NonEmpty ((:|)),
+    pattern IsEmpty,
+    pattern IsNonEmpty,
     singleton,
     nonEmpty,
     nonEmptyDef,
+    overNonEmpty,
+    zipNonEmpty,
+    zipWithNonEmpty,
+    zip3NonEmpty,
+    zipWith3NonEmpty,
+    zip4NonEmpty,
     toList,
     toNonEmptyDefault,
+    lengthNatural,
     maximum1,
     minimum1,
+    maximumBy1,
+    minimumBy1,
     Vector,
     Generic,
     Lift,
@@ -154,6 +167,7 @@ where
 
 import Control.Applicative ((<|>))
 import Control.Category (Category, (>>>))
+import Control.Foldl.NonEmpty qualified as Foldl1
 import Control.Monad (guard, join, unless, when)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Except
@@ -179,7 +193,9 @@ import Data.Function ((&))
 import Data.Functor ((<&>))
 import Data.Functor.Contravariant (Contravariant (contramap), (>$<))
 import Data.Functor.Identity (Identity (runIdentity))
+import Data.List (zip4)
 import Data.List.NonEmpty (NonEmpty ((:|)), nonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict
   ( Map,
   )
@@ -188,7 +204,7 @@ import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Maybe qualified as Maybe
 import Data.Profunctor (Profunctor, dimap, lmap, rmap)
 import Data.Scientific (Scientific)
-import Data.Semigroup (Max (Max, getMax), Min (Min, getMin), sconcat)
+import Data.Semigroup (sconcat)
 import Data.Semigroup.Foldable (Foldable1 (fold1), foldMap1)
 import Data.Semigroup.Traversable (Traversable1)
 import Data.Semigroupoid (Semigroupoid (o))
@@ -211,6 +227,7 @@ import GHC.Generics (Generic)
 import GHC.Natural (Natural)
 import GHC.Records (HasField)
 import GHC.Stack (HasCallStack)
+import GHC.Utils.Encoding.UTF8 qualified as GHC
 import Language.Haskell.TH.Syntax (Lift)
 import PyF (fmt)
 import System.Exit qualified
@@ -249,10 +266,10 @@ infixl 5 >&<
 --
 -- Specialized examples:
 --
--- @@
+-- @
 -- for functions : (a -> b) -> (b -> c) -> (a -> c)
 -- for Folds: Fold a b -> Fold b c -> Fold a c
--- @@
+-- @
 (&>>) :: (Semigroupoid s) => s a b -> s b c -> s a c
 (&>>) = flip Data.Semigroupoid.o
 
@@ -293,26 +310,51 @@ bytesToTextUtf8LenientLazy :: Data.ByteString.Lazy.ByteString -> Data.Text.Lazy.
 bytesToTextUtf8LenientLazy =
   Data.Text.Lazy.Encoding.decodeUtf8With Data.Text.Encoding.Error.lenientDecode
 
--- | Make a lazy text strict
+-- | Make a lazy 'Text' strict.
 toStrict :: Data.Text.Lazy.Text -> Text
 toStrict = Data.Text.Lazy.toStrict
 
--- | Make a strict text lazy
+-- | Make a strict 'Text' lazy.
 toLazy :: Text -> Data.Text.Lazy.Text
 toLazy = Data.Text.Lazy.fromStrict
 
+-- | Make a lazy 'ByteString' strict.
 toStrictBytes :: Data.ByteString.Lazy.ByteString -> ByteString
 toStrictBytes = Data.ByteString.Lazy.toStrict
 
+-- | Make a strict 'ByteString' lazy.
 toLazyBytes :: ByteString -> Data.ByteString.Lazy.ByteString
 toLazyBytes = Data.ByteString.Lazy.fromStrict
 
+-- | Convert a (performant) 'Text' into an (imperformant) list-of-char 'String'.
+--
+-- Some libraries (like @time@ or @network-uri@) still use the `String` as their interface. We only want to convert to string at the edges, otherwise use 'Text'.
+--
+-- ATTN: Don’t use `String` in code if you can avoid it, prefer `Text` instead.
 textToString :: Text -> String
 textToString = Data.Text.unpack
 
+-- | Convert an (imperformant) list-of-char 'String' into a (performant) 'Text' .
+--
+-- Some libraries (like @time@ or @network-uri@) still use the `String` as their interface. We want to convert 'String' to 'Text' as soon as possible and only use 'Text' in our code.
+--
+-- ATTN: Don’t use `String` in code if you can avoid it, prefer `Text` instead.
 stringToText :: String -> Text
 stringToText = Data.Text.pack
 
+-- | Encode a String to an UTF-8 encoded Bytestring
+--
+-- ATTN: Don’t use `String` in code if you can avoid it, prefer `Text` instead.
+stringToBytesUtf8 :: String -> ByteString
+stringToBytesUtf8 = GHC.utf8EncodeByteString
+
+-- | Like `show`, but generate a 'Text'
+--
+-- ATTN: This goes via `String` and thus is fairly inefficient.
+-- We should add a good display library at one point.
+--
+-- ATTN: unlike `show`, this forces the whole @'a
+-- so only use if you want to display the whole thing.
 showToText :: (Show a) => a -> Text
 showToText = stringToText . show
 
@@ -328,6 +370,18 @@ showToText = stringToText . show
 charToWordUnsafe :: Char -> Word8
 {-# INLINE charToWordUnsafe #-}
 charToWordUnsafe = fromIntegral . Data.Char.ord
+
+pattern IsEmpty :: [a]
+pattern IsEmpty <- (null -> True)
+  where
+    IsEmpty = []
+
+pattern IsNonEmpty :: NonEmpty a -> [a]
+pattern IsNonEmpty n <- (nonEmpty -> Just n)
+  where
+    IsNonEmpty n = toList n
+
+{-# COMPLETE IsEmpty, IsNonEmpty #-}
 
 -- | Single element in a (non-empty) list.
 singleton :: a -> NonEmpty a
@@ -346,13 +400,69 @@ toNonEmptyDefault def xs = case xs of
   [] -> def :| []
   (x : xs') -> x :| xs'
 
--- | @O(n)@. Get the maximum element from a non-empty structure.
-maximum1 :: (Foldable1 f, Ord a) => f a -> a
-maximum1 xs = xs & foldMap1 Max & getMax
+-- | If the list is not empty, run the given function with a NonEmpty list, otherwise just return []
+overNonEmpty :: (Applicative f) => (NonEmpty a -> f [b]) -> [a] -> f [b]
+overNonEmpty f xs = case xs of
+  IsEmpty -> pure []
+  IsNonEmpty xs' -> f xs'
 
--- | @O(n)@. Get the minimum element from a non-empty structure.
+-- | Zip two non-empty lists.
+zipNonEmpty :: NonEmpty a -> NonEmpty b -> NonEmpty (a, b)
+{-# INLINE zipNonEmpty #-}
+zipNonEmpty ~(a :| as) ~(b :| bs) = (a, b) :| zip as bs
+
+-- | Zip two non-empty lists, combining them with the given function
+zipWithNonEmpty :: (a -> b -> c) -> NonEmpty a -> NonEmpty b -> NonEmpty c
+{-# INLINE zipWithNonEmpty #-}
+zipWithNonEmpty = NonEmpty.zipWith
+
+-- | Zip three non-empty lists.
+zip3NonEmpty :: NonEmpty a -> NonEmpty b -> NonEmpty c -> NonEmpty (a, b, c)
+{-# INLINE zip3NonEmpty #-}
+zip3NonEmpty ~(a :| as) ~(b :| bs) ~(c :| cs) = (a, b, c) :| zip3 as bs cs
+
+-- | Zip three non-empty lists, combining them with the given function
+zipWith3NonEmpty :: (a -> b -> c -> d) -> NonEmpty a -> NonEmpty b -> NonEmpty c -> NonEmpty d
+{-# INLINE zipWith3NonEmpty #-}
+zipWith3NonEmpty f ~(x :| xs) ~(y :| ys) ~(z :| zs) = f x y z :| zipWith3 f xs ys zs
+
+-- | Zip four non-empty lists
+zip4NonEmpty :: NonEmpty a -> NonEmpty b -> NonEmpty c -> NonEmpty d -> NonEmpty (a, b, c, d)
+{-# INLINE zip4NonEmpty #-}
+zip4NonEmpty ~(a :| as) ~(b :| bs) ~(c :| cs) ~(d :| ds) = (a, b, c, d) :| zip4 as bs cs ds
+
+-- | We don’t want to use Foldable’s `length`, because it is too polymorphic and can lead to bugs.
+-- Only list-y things should have a length.
+class (Foldable f) => Lengthy f
+
+instance Lengthy []
+
+instance Lengthy NonEmpty
+
+instance Lengthy Vector
+
+lengthNatural :: (Lengthy f) => f a -> Natural
+lengthNatural xs =
+  xs
+    & Foldable.length
+    -- length can never be negative or something went really, really wrong
+    & fromIntegral @Int @Natural
+
+-- | @O(n)@. Get the maximum element from a non-empty structure (strict).
+maximum1 :: (Foldable1 f, Ord a) => f a -> a
+maximum1 = Foldl1.fold1 Foldl1.maximum
+
+-- | @O(n)@. Get the maximum element from a non-empty structure, using the given comparator (strict).
+maximumBy1 :: (Foldable1 f) => (a -> a -> Ordering) -> f a -> a
+maximumBy1 f = Foldl1.fold1 (Foldl1.maximumBy f)
+
+-- | @O(n)@. Get the minimum element from a non-empty structure (strict).
 minimum1 :: (Foldable1 f, Ord a) => f a -> a
-minimum1 xs = xs & foldMap1 Min & getMin
+minimum1 = Foldl1.fold1 Foldl1.minimum
+
+-- | @O(n)@. Get the minimum element from a non-empty structure, using the given comparator (strict).
+minimumBy1 :: (Foldable1 f) => (a -> a -> Ordering) -> f a -> a
+minimumBy1 f = Foldl1.fold1 (Foldl1.minimumBy f)
 
 -- | Annotate a 'Maybe' with an error message and turn it into an 'Either'.
 annotate :: err -> Maybe a -> Either err a

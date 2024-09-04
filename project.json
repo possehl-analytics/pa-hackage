@@ -3,7 +3,7 @@
     "hackagePackages": [
         {
             "name": "pa-prelude",
-            "version": "0.2.0.0",
+            "version": "0.3.0.0",
             "synopsis": "The Possehl Analytics Prelude",
             "description": "A prelude to be used in addition to `base`’s `Prelude`",
             "modules": [
@@ -13,6 +13,8 @@
                 "base <5",
                 "error >0.1 && <1.1",
                 "exceptions",
+                "ghc-boot",
+                "foldl",
                 "mtl",
                 "text",
                 "PyF",
