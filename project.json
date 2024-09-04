@@ -139,6 +139,24 @@
                 "monad-logger",
                 "typed-process"
             ]
+        },
+        {
+            "name": "pa-test-discover",
+            "version": "0.1.0.0",
+            "synopsis": "Haskell source code preprocessor that finds exported Specs starting with test_",
+            "description": "Haskell source code preprocessor in the style of hspec-discover and tasty-discover that finds exported Specs beginning with test_ in the current source tree and creates a test suite running them ordered by module.",
+            "modules": [
+            ],
+            "dependencies": [
+                "base >= 4.15 && <5",
+                "bytestring >= 0.11",
+                "containers",
+                "filepath",
+                "Glob",
+                "PyF",
+                "ghc-boot"
+            ]
         }
+
     ]
 }

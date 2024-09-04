@@ -15,4 +15,6 @@ cradle:
       component: "lib:pa-pretty"
     - path: "./pa-run-command"
       component: "lib:pa-run-command"
+    - path: "./pa-test-discover"
+      component: "lib:pa-test-discover"
 

@@ -95,6 +95,13 @@ build pa-run-command/pa-run-command.cabal : generate-cabal-file $builddir/pa-run
   cabal-template = pa-template.cabal.mustache
   project-dir = pa-run-command
 
+build pa-test-discover/LICENSE : copy-license
+build $builddir/pa-test-discover.cabal.json : generate-cabal-file-data | project.json
+  cabal-package = pa-test-discover
+  project-json = project.json
+build pa-test-discover/pa-test-discover.cabal : generate-cabal-file $builddir/pa-test-discover.cabal.json | pa-template.cabal.mustache
+  cabal-template = pa-template.cabal.mustache
+  project-dir = pa-test-discover
 
 # generate cabal.project
 build cabal.project : generate-cabal.project | cabal.project.mustache project.json
@@ -115,5 +122,6 @@ build build-all $
   pa-field-parser/pa-field-parser.cabal $
   pa-json/pa-json.cabal $
   pa-pretty/pa-pretty.cabal $
-  pa-run-command/pa-run-command.cabal
+  pa-run-command/pa-run-command.cabal $
+  pa-test-discover/pa-test-discover.cabal
   target = all

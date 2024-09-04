@@ -7,6 +7,7 @@ packages:
   ./pa-json
   ./pa-pretty
   ./pa-run-command
+  ./pa-test-discover
 
 -- These options should only be for local development with cabal, they will not be picked up by the nix build, on CI and in releases.
 package *
