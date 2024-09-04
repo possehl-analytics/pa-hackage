@@ -1,5 +1,12 @@
 # Revision history for pa-json
 
+## 0.4.0.0 -- 2024-09-04
+
+- Add `eachInArrayNonEmpty`
+- Add `choice`, `choiceDef`, `choiceImpl`, `mkSingleChoice`
+- Add `ensureNotEmpty`
+- Add `mkUtcTime`, `mkMaybe`
+
 ## 0.3.0.0 -- 2023-10-15
 
 - rename `jsonArray` to `mkJsonArray`
