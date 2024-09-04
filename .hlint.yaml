@@ -5,7 +5,13 @@
 
 # WARNING: These need to be synced with the default-extensions field
 # in the cabal file.
-- arguments: [-XGHC2021, -XOverloadedRecordDot]
+# TODO(l-epple): can we obtain this information automatically somehow?
+- arguments:
+    - -XGHC2021
+    - -XOverloadedRecordDot
+    - -XLambdaCase
+    - -XMultiWayIf
+    - -XExplicitNamespaces
 
 # Ignore some builtin hints
 
@@ -32,11 +38,14 @@
 - ignore: { name: Use fmap }
 - ignore: { name: Use <$> }
 - ignore: { name: Use tuple-section }
+- ignore: { name: Use for_ }
 - ignore: { name: Use forM_ }
+- ignore: { name: Functor law }
 # fst and snd are usually a code smell and should be explicit matches, _naming the ignored side.
 - ignore: { name: Use fst }
 - ignore: { name: Use snd }
 - ignore: { name: Use fromMaybe }
+- ignore: { name: Use maybe }
 - ignore: { name: Use const }
 - ignore: { name: Replace case with maybe }
 - ignore: { name: Replace case with fromMaybe }
@@ -51,6 +60,7 @@
 # just use `not x`
 - ignore: { name: Use unless }
 - ignore: { name: Redundant <&> }
+- ignore: { name: Redundant pure }
 
 # list comprehensions are a seldomly used part of the Haskell language
 # and they introduce syntactic overhead that is usually not worth the conciseness
@@ -123,7 +133,7 @@
       message: "`void` leads to bugs. Use an explicit `_ <- …` instead"
 
     - name: Data.Foldable.length
-      within: []
+      within: ["PossehlAnalyticsPrelude"]
       message: "`Data.Foldable.length` is dangerous to use, because it also works on types you wouldn’t expect, like `length (3,4) == 1` and `length (Just 2) == 1`. Use the `length` function for your specific type instead, for example `List.length` or `Map.length`."
 
     - name: Prelude.length
@@ -279,6 +289,36 @@
       message: |
         `Either.fromRight` is obviously partial. Please use a pattern match.
 
+    - name: "System.Exit.die"
+      within: []
+      message: |
+        Use `exitWithMessage` instead.
+
+    - name: "Data.Aeson.decode"
+      within: []
+      message: |
+        Use `eitherDecode'` or `eitherDecodeFileStrict'` to release the underlying bytestring immediately and return an error message.
+
+    - name: "Data.Aeson.decodeFileStrict"
+      within: []
+      message: |
+        Use `eitherDecodeFileStrict'` to release the underlying bytestring immediately and return an error message.
+
+    - name: "Data.Aeson.eitherDecode"
+      within: []
+      message: |
+        Use `eitherDecode'` or `eitherDecodeFileStrict'` to release the underlying bytestring immediately.
+
+    - name: "Data.Aeson.eitherDecodeFileStrict"
+      within: []
+      message: |
+        Use `eitherDecodeFileStrict'` to release the underlying bytestring immediately.
+
+    - name: "Data.Aeson.BetterErrors.asIntegral"
+      within: []
+      message: |
+        Use `Json.asIntegralBounded` to prevent overflow errors.
+
 # Make restricted functions into an error if found
 - error: { name: "Avoid restricted function, see comment in .hlint.yaml" }
 
@@ -325,6 +365,21 @@
     lhs: "Data.Set.toList (Data.Set.fromList x)"
     rhs: "List.nubOrd x"
     note: "`nubOrd` removes duplicate elements from a list."
+
+- hint:
+    lhs: "x & textToString & stringToBytesUtf8"
+    rhs: "x & textToBytesUtf8"
+    note: "Avoids the intermediate conversion to String (don’t build Strings!!)"
+
+- hint:
+    lhs: x & stringToText & textToBytesUtf8
+    rhs: x & stringToBytesUtf8
+    note: "Avoids the intermediate conversion to Text."
+
+- hint:
+    lhs: x & showToText & textToBytesUtf8
+    rhs: x & show & stringToBytesUtf8
+    note: "Avoids the intermediate conversion to Text."
 
 - modules:
     # Disallowed Modules
