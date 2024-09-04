@@ -61,6 +61,10 @@ common common-options
     -- to enable the `type` keyword in import lists (ormolu uses this automatically)
     ExplicitNamespaces
 
+    -- allows defining pattern synonyms, but also the `import Foo (pattern FooPattern)` import syntax
+    PatternSynonyms
+
+
   default-language: GHC2021
 
 library
