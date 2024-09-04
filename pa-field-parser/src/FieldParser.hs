@@ -212,10 +212,19 @@ scientific = attoparsecText (\t -> [fmt|Not a scientific number: "{t}"|]) Atto.s
 -- (e.g. 64 bits via @Int@) and then go from that to the unbounded type (e.g. via 'integralToNatural').
 --
 -- @err@ is added as context around the bounded error.
-boundedScientificIntegral :: forall i. (Integral i, Bounded i) => Error -> FieldParser Scientific i
-boundedScientificIntegral err = FieldParser $ \s -> case Scientific.toBoundedInteger s of
-  Nothing -> Left $ (err & errorContext [fmt|Must be between {iMinBound} and {iMaxBound}|])
-  Just i -> Right i
+boundedScientificIntegral ::
+  forall i.
+  (Integral i, Bounded i) =>
+  Error ->
+  FieldParser Scientific i
+boundedScientificIntegral err = FieldParser $ \s ->
+  -- we check for isFloating first, because @toBoundedInteger@ returns `Nothing` if the number is floating as well as out of bound
+  if Scientific.isFloating s
+    then Left $ (err & errorContext [fmt|Must be a natural number, but was a floating point number: {show s}|])
+    else case Scientific.toBoundedInteger s of
+      Nothing ->
+        Left $ (err & errorContext [fmt|Must be between {iMinBound} and {iMaxBound}, but was: {show s}|])
+      Just i -> Right i
   where
     iMinBound = toInteger (minBound :: i)
     iMaxBound = toInteger (maxBound :: i)
@@ -232,9 +241,9 @@ boundedScientificRealFloat = FieldParser $ \s ->
     & first
       ( \zeroOrInf ->
           ( if
-                | 0 == zeroOrInf -> [fmt|Number {show s} is too small to fit into floating point.|]
-                | isInfinite zeroOrInf -> [fmt|Number {show s} is too big to fit into floating point.|]
-                | otherwise -> [fmt|Number {show s} did not fit into floating point, but we don’t know why (BUG).|]
+              | 0 == zeroOrInf -> [fmt|Number {show s} is too small to fit into floating point.|]
+              | isInfinite zeroOrInf -> [fmt|Number {show s} is too big to fit into floating point.|]
+              | otherwise -> [fmt|Number {show s} did not fit into floating point, but we don’t know why (BUG).|]
           )
       )
 

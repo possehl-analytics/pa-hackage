@@ -57,7 +57,7 @@
         },
         {
             "name": "pa-field-parser",
-            "version": "0.3.0.0",
+            "version": "0.3.1.0",
             "synopsis": "“Vertical” parsing of values",
             "description": "",
             "modules": [

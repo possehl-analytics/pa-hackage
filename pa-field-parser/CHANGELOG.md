@@ -1,5 +1,9 @@
 # Revision history for pa-field-parser
 
+## 0.3.1.0 -- 2024-09-04
+
+- Improve `boundedScientificIntegral`
+
 ## 0.3.0.0 -- 2023-10-15
 
 - rename `jsonParser` to `toJsonParser`
