@@ -1,6 +1,6 @@
 # Revision history for pa-prelude
 
-## 0.2.0.0 -- 2024-09-04
+## 0.3.0.0 -- 2024-09-04
 
 - Add `IsEmpty` and `IsNonEmpty` patterns (for getting a `NonEmpty` from a match)
 - Add `stringToBytesUtf8`
